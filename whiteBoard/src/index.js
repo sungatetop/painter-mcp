@@ -20,6 +20,7 @@ app.use(bodyParser.json());
 app.use(express.static(publicPath));
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+const clients = new Set();
 // 根路由处理
 app.get('/', (req, res) => {
     const indexPath = path.join(publicPath, 'index.html');
@@ -100,30 +101,19 @@ app.post('/eraser', (req, res) => {
     }
 });
 // 绘画操作
-function handleDrawOperation(x, y, isStart, isEnd) {
-    if (isStart) {
-        // 无论当前工具是什么，都开始新的绘制
-        canvasManager.startDrawing(x, y);
-    } else if (isEnd) {
-        // 结束当前绘制
-        canvasManager.stopDrawing();
-    } else {
-        // 进行绘制
-        canvasManager.draw(x, y);
-    }
+function handleDrawOperation(x, y, state) {
+    canvasManager.draw(x, y, state);
 }
-// 修改后的绘画操作路由
 app.post('/draw', (req, res) => {
-    const { x, y, isStart, isEnd } = req.body;
+    const { x, y, state } = req.body;
     try {
-        // 处理绘画操作
+        console.log('绘制坐标:', x, y, '状态:', state);
         if(canvasManager.checkPointInCanvas(x, y)){
-            handleDrawOperation(x, y, isStart, isEnd);
-            // 广播绘制消息
+            handleDrawOperation(x, y, state);
             const response = {
                 operation: 'draw',
                 status: 'success',
-                data: { x, y, isStart, isEnd }
+                data: { x, y, state }
             };
             clients.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
@@ -226,8 +216,6 @@ app.get('/get_current_draw_parameters', (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 });
-// 存储所有连接的客户端
-const clients = new Set();
 
 wss.on('connection', (ws) => {
     console.log('新客户端已连接');
@@ -245,10 +233,8 @@ wss.on('connection', (ws) => {
         try {
             switch (data.operation) {
                 case 'draw':
-                    // 处理绘画操作
-                    console.log("do draw", data.x, data.y, data.isStart, data.isEnd)
-                    handleDrawOperation(data.x, data.y, data.isStart, data.isEnd);
-                    response.data = { x: data.x, y: data.y, isStart: data.isStart, isEnd: data.isEnd };
+                    handleDrawOperation(data.x, data.y, data.state);
+                    response.data = { x: data.x, y: data.y, state: data.state };
                     break;
                 case 'setBrush':
                     handleBrushOperation(data.width, data.color);

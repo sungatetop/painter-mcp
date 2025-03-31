@@ -86,12 +86,12 @@
             isDrawing = true;
             const { offsetX: x, offsetY: y } = e;
             await updateToolProperties();
-
+        
             socket.send(JSON.stringify({
                 operation: 'draw',
                 x,
                 y,
-                isStart: true
+                state: 'start'
             }));
             ctx.beginPath();
             ctx.moveTo(x, y);
@@ -100,16 +100,6 @@
             ctx.lineCap = 'round';
         }
 
-        // 获取橡皮擦按钮
-        const eraserBtn = document.getElementById('eraser');
-        
-        // 橡皮擦按钮点击事件
-        eraserBtn.addEventListener('click', () => {
-            currentTool = 'eraser';
-            // 更新工具属性
-            updateToolProperties();
-        });
-        
         // 修改绘制逻辑
         async function draw(e) {
             if (!isDrawing) return;
@@ -118,7 +108,8 @@
             socket.send(JSON.stringify({
                 operation: 'draw',
                 x,
-                y
+                y,
+                state: 'move'
             }));
             ctx.lineTo(x, y);
             ctx.strokeStyle = currentTool === 'brush' ? colorPicker.value : '#ffffff';
@@ -130,17 +121,18 @@
         async function stopDrawing() {
             if (!isDrawing) return;
             isDrawing = false;
-
+        
             socket.send(JSON.stringify({
                 operation: 'draw',
                 x: 0,
                 y: 0,
-                isEnd: true
+                state: 'end'
             }));
             ctx.closePath();
             ctx.globalCompositeOperation = 'source-over';
         }
 
+        // 修改服务器消息处理
         function drawFromServer(message) {
             const data = message.data;
             if (message.operation === 'draw') {
@@ -160,14 +152,18 @@
                     ctx.strokeStyle = colorPicker.value; // 画笔颜色
                 }
 
-                if (data.isStart) {
-                    ctx.beginPath();
-                    ctx.moveTo(data.x, data.y);
-                } else if (data.isEnd) {
-                    //
-                } else {
-                    ctx.lineTo(data.x, data.y);
-                    ctx.stroke();
+                switch(data.state) {
+                    case 'start':
+                        ctx.beginPath();
+                        ctx.moveTo(data.x, data.y);
+                        break;
+                    case 'move':
+                        ctx.lineTo(data.x, data.y);
+                        ctx.stroke();
+                        break;
+                    case 'end':
+                        //ctx.closePath();
+                        break;
                 }
                 
                 // 恢复上下文状态

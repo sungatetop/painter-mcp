@@ -41,10 +41,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         properties: {
           x: { type: "number", description: "X坐标" },
           y: { type: "number", description: "Y坐标" },
-          isStart: { type: "boolean", description: "是否开始绘制" },
-          isEnd: { type: "boolean", description: "是否结束绘制" }
+          state: { type: "string", description: "绘制状态：start,move,end" },
         },
-        required: ["x", "y", "isStart", "isEnd"]
+        required: ["x", "y", "state"]
       }
     },
     {
@@ -144,11 +143,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // }
   if (request.params.name === "draw_on_canvas") {
     //获取画板大小
-    const { x, y, isStart, isEnd } = request.params.arguments as {
+    const { x, y, state } = request.params.arguments as {
       x: number;
       y: number;
-      isStart: boolean;
-      isEnd: boolean
+      state: string;
     };
     // 调用画板API
     const response = await fetch('http://localhost:3000/draw', {
@@ -156,7 +154,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ x, y, isStart, isEnd })
+      body: JSON.stringify({ x, y, state })
     });
 
     if (!response.ok) {

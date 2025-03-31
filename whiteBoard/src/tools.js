@@ -80,9 +80,22 @@ class CanvasManager {
         this.currentTool.draw(this.ctx, x, y, false);
     }
 
-    draw(x, y) {
-        if (!this.isDrawing) return;
-        this.currentTool.draw(this.ctx, x, y, true);
+    draw(x, y, state) {
+        switch(state) {
+            case 'start':
+                this.isDrawing = true;
+                this.currentTool.configureContext(this.ctx);
+                this.currentTool.draw(this.ctx, x, y, false);
+                break;
+            case 'move':
+                if (this.isDrawing) {
+                    this.currentTool.draw(this.ctx, x, y, true);
+                }
+                break;
+            case 'end':
+                this.isDrawing = false;
+                break;
+        }
     }
     checkPointInCanvas(x, y) {
         return x >= 0 && x <= this.canvas.width && y >= 0 && y <= this.canvas.height;
@@ -105,6 +118,12 @@ class CanvasManager {
             width: this.currentTool.width,
             color: this.currentTool.color
         }; 
+    }
+    drawLine(x1, y1, x2, y2) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
     }
     clear() {
         this.ctx.fillStyle = '#ffffff';
