@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画板</title>
+    <style>
+        canvas {
+            border: 1px solid #000;
+            margin: 10px;
+        }
+        .tools {
+            margin: 10px;
+        }
+        button {
+            margin: 0 5px;
+            padding: 5px 10px;
+        }
+        #colorPicker {
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="tools">
+        <button id="brush">画笔</button>
+        <button id="eraser">橡皮擦</button>
+        <input type="color" id="colorPicker" value="#000000">
+        <input type="range" id="lineWidth" min="1" max="20" value="2">
+        <button id="clear">清空</button>
+    </div>
+    <canvas id="drawingBoard" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('drawingBoard');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let currentTool = 'brush';
+        // 添加WebSocket连接
+        const socket = new WebSocket(`ws://${window.location.host}`);
+        
+        // WebSocket事件监听
+        socket.addEventListener('message', (event) => {
+            const message = JSON.parse(event.data);
+            console.log('收到服务器消息:', message);
+            if (message.operation === 'draw') {
+                drawFromServer(message);
+            } else if (message.operation === 'setBrush') {
+                lineWidth.value = message.data.width;
+                colorPicker.value = message.data.color;
+                currentTool = 'brush';
+                //updateToolProperties();
+            } else if (message.operation === 'setEraser') {
+                lineWidth.value = message.data.width;
+                currentTool = 'eraser';
+                //updateToolProperties();
+            } else if (message.operation === 'setColor') {
+                colorPicker.value = message.data.color;
+                currentTool = 'brush';
+            } else if (message.operation === 'clear') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+            } else if (message.operation === 'error') {
+                console.error('服务器错误:', message.data.message);
+            }
+        });
+
+        // 更新工具属性
+        async function updateToolProperties() {
+            if (currentTool === 'eraser') {
+                socket.send(JSON.stringify({
+                    operation: 'setEraser',
+                    width: parseInt(lineWidth.value)
+                }));
+            } else if (currentTool === 'brush') {
+                socket.send(JSON.stringify({
+                    operation: 'setBrush',
+                    width: parseInt(lineWidth.value),
+                    color: colorPicker.value
+                }));
+            }
+        }
+
+        // 绘画事件
+        async function startDrawing(e) {
+            isDrawing = true;
+            const { offsetX: x, offsetY: y } = e;
+            await updateToolProperties();
+
+            socket.send(JSON.stringify({
+                operation: 'draw',
+                x,
+                y,
+                isStart: true
+            }));
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineWidth = lineWidth.value;
+            ctx.strokeStyle = currentTool === 'brush' ? colorPicker.value : '#ffffff';
+            ctx.lineCap = 'round';
+        }
+
+        // 获取橡皮擦按钮
+        const eraserBtn = document.getElementById('eraser');
+        
+        // 橡皮擦按钮点击事件
+        eraserBtn.addEventListener('click', () => {
+            currentTool = 'eraser';
+            // 更新工具属性
+            updateToolProperties();
+        });
+        
+        // 修改绘制逻辑
+        async function draw(e) {
+            if (!isDrawing) return;
+            const { offsetX: x, offsetY: y } = e;
+        
+            socket.send(JSON.stringify({
+                operation: 'draw',
+                x,
+                y
+            }));
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = currentTool === 'brush' ? colorPicker.value : '#ffffff';
+            ctx.lineWidth = lineWidth.value;
+            ctx.globalCompositeOperation = currentTool === 'brush' ? 'source-over' : 'destination-out';
+            ctx.stroke();
+        }
+
+        async function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            socket.send(JSON.stringify({
+                operation: 'draw',
+                x: 0,
+                y: 0,
+                isEnd: true
+            }));
+            ctx.closePath();
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function drawFromServer(message) {
+            const data = message.data;
+            if (message.operation === 'draw') {
+                // 保存当前上下文状态
+                ctx.save();
+                
+                // 设置绘制属性
+                ctx.lineWidth = lineWidth.value;
+                ctx.lineCap = 'round';
+                
+                // 根据当前工具设置绘制模式
+                if (currentTool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.strokeStyle = '#ffffff'; // 橡皮擦颜色
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = colorPicker.value; // 画笔颜色
+                }
+
+                if (data.isStart) {
+                    ctx.beginPath();
+                    ctx.moveTo(data.x, data.y);
+                } else if (data.isEnd) {
+                    //
+                } else {
+                    ctx.lineTo(data.x, data.y);
+                    ctx.stroke();
+                }
+                
+                // 恢复上下文状态
+                ctx.restore();
+            }
+        }
+        // 清空画布
+        // 获取清空按钮
+        const clearBtn = document.getElementById('clear');
+        
+        // 清空画布功能
+        // 清空画布功能
+        function clearCanvas() {
+            // 清空本地画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 重置绘图上下文状态
+            ctx.beginPath();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = currentTool === 'brush' ? colorPicker.value : '#ffffff';
+            ctx.lineWidth = lineWidth.value;
+            ctx.lineCap = 'round';
+            
+            // 通过WebSocket通知服务器和其他客户端
+            socket.send(JSON.stringify({
+                operation: 'clear'
+            }));
+        }
+        
+        // 清空按钮点击事件
+        clearBtn.addEventListener('click', () => {
+            currentTool = 'clear';
+            clearCanvas();
+        });
+        // 事件监听
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+    </script>
+</body>
+</html>
