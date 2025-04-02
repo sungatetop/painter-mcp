@@ -22,6 +22,47 @@ class DrawingTool {
             ctx.stroke();
         }
     }
+    drawLine(ctx, x1, y1, x2, y2) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+    drawRect(ctx, x, y, width, height, fill = false) {
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        if (fill) {
+            ctx.fill();
+        } else {
+            ctx.stroke();
+        }
+    }
+    fillRect(ctx, x, y, width, height) {
+        ctx.fillRect(x, y, width, height);
+    }
+    drawGradientRect(ctx, x, y, width, height, colorStops) {
+        const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+        colorStops.forEach(stop => {
+            gradient.addColorStop(stop.offset, stop.color);
+        });
+        ctx.fillStyle = gradient;
+        this.fillRect(ctx, x, y, width, height);
+        ctx.fillStyle = ""
+    }
+    drawCircle(ctx, x, y, radius, fill = false) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        if (fill) {
+            ctx.fill();
+        } else {
+            ctx.stroke();
+        }
+    }
+    drawText(ctx, text, x, y, font = '16px Arial') {
+        ctx.font = font;
+        ctx.fillText(text, x, y);
+    }
+
 
     setWidth(width) {
         this.width = width;
@@ -120,11 +161,29 @@ class CanvasManager {
         }; 
     }
     drawLine(x1, y1, x2, y2) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(x1, y1);
-        this.ctx.lineTo(x2, y2);
-        this.ctx.stroke();
+        this.currentTool.configureContext(this.ctx);
+        this.currentTool.drawLine(this.ctx, x1, y1, x2, y2);
     }
+    drawRect(x1,y1,width,height){
+        this.currentTool.configureContext(this.ctx)
+        this.currentTool.drawRect(this.ctx,x1,y1,width,height)
+    }
+    drawCircle(x,y,radius,fill){
+        this.currentTool.configureContext(this.ctx)
+        this.currentTool.drawCircle(this.ctx,x,y,radius,fill)
+    }
+    drawGradientRect(x, y, width, height, colorStops) {
+        this.currentTool.configureContext(this.ctx)
+        this.currentTool.drawGradientRect(this.ctx, x, y, width, height, colorStops);
+    }
+    drawText(text,x,y,font){
+        this.currentTool.configureContext(this.ctx)
+        if(font===null){
+            this.ctx.font="16px Arial"
+        }
+        this.currentTool.drawText(this.ctx,text,x,y,font)
+    }
+
     clear() {
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);

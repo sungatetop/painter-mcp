@@ -129,6 +129,32 @@ app.post('/draw', (req, res) => {
     }
 });
 
+app.post('/draw_line', (req, res) => {
+    const { x1, y1, x2, y2 } = req.body;
+    try {
+        console.log('绘制坐标:起点', x1, y1, '终点:', x2, y2);
+        if(canvasManager.checkPointInCanvas(x1, y1) && canvasManager.checkPointInCanvas(x2, y2)){
+            canvasManager.drawLine(x1, y1, x2, y2);
+            const response = {
+                operation: 'draw_line',
+                status: 'success',
+                data: { x1, y1, x2, y2 }
+            };
+            clients.forEach(client => { // 广播消息给所有客户端
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(response));
+                }
+            });
+            res.json({ status: 'success' });
+        }else{
+            res.status(400).json({ status: 'error', message: '坐标越界,画板左上角为坐标原点，y向下为正，x向右为正' });
+        }
+
+    }catch (error) {
+        res.status(400).json({ status: 'error', message: error.message });
+    }
+});
+
 // 颜色选择器操作
 app.post('/color-picker', (req, res) => {
     try {

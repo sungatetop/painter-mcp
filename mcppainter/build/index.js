@@ -1,12 +1,21 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ErrorCode, McpError, } from "@modelcontextprotocol/sdk/types.js";
 const server = new Server({
     name: "mcp-painter",
-    version: "1.0.0",
+    version: "1.1.0",
 }, {
     capabilities: {
-        tools: {}
+        tools: {},
+        resources: {
+            list: true,
+            read: true,
+            subscribe: false
+        },
+        prompts: {
+            list: true,
+            get: true
+        }
     }
 });
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -37,6 +46,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ["x", "y", "state"]
                 }
             },
+            // {
+            //   name:"draw_line",
+            //   description:"在画板上绘制线段",
+            //   inputSchema:{
+            //     type: "object",
+            //     properties: {
+            //       x1: { type: "number", description: "起点X坐标" },
+            //       y1: { type: "number", description: "起点Y坐标" },
+            //       x2: { type: "number", description: "终点X坐标" },
+            //       y2: { type: "number", description: "终点Y坐标" },
+            //     },
+            //     required: ["x1", "y1", "x2","y2"]
+            //   }
+            // },
             {
                 name: "use_eraser",
                 description: "使用橡皮擦",
@@ -69,14 +92,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         color: { type: "string", description: "颜色值" }
                     },
                     required: ["color"]
-                }
-            },
-            {
-                name: "get_image",
-                description: "获取当前画布绘制的结果图像",
-                inputSchema: {
-                    type: "object",
-                    properties: {}
                 }
             },
             {
@@ -118,6 +133,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         ]
     };
 });
+// List available resources
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+        resources: [
+            {
+                uri: "image:///current_image.png",
+                name: "当前绘制结果的图像",
+                mimeType: "image/png"
+            }
+        ]
+    };
+});
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const uri = request.params.uri;
+    if (uri === "image:///current_image.png") {
+        const response = await fetch('http://localhost:3000/image');
+        if (!response.ok)
+            throw new McpError(ErrorCode.InternalError, "获取图像失败");
+        const imageBuffer = await response.arrayBuffer();
+        return { content: [
+                {
+                    "uri": uri,
+                    "name": "绘制结果图像",
+                    "mimeType": "image/png",
+                    "blob": Buffer.from(imageBuffer).toString('base64')
+                }
+            ] };
+    }
+    throw new Error("Resource not found");
+});
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!request.params || !request.params.arguments) {
         throw new McpError(ErrorCode.InvalidParams, "缺少参数");
@@ -148,6 +193,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         return { content: [{ type: "text", text: "绘制成功" }] };
     }
+    // if (request.params.name === "draw_line") {
+    //   //获取画板大小
+    //   const { x1, y1, x2,y2 } = request.params.arguments as {
+    //     x1: number;
+    //     y1: number;
+    //     x2: number;
+    //     y2: number;
+    //   };
+    //   // 调用画板API
+    //   const response = await fetch('http://localhost:3000/draw_line', {
+    //     method: 'POST',
+    //     headers: {
+    //       'Content-Type': 'application/json'
+    //     },
+    //     body: JSON.stringify({ x1, y1, x2, y2 })
+    //   });
+    //   if (!response.ok) {
+    //     throw new McpError(ErrorCode.InternalError, "画板API调用失败"+response.statusText);
+    //   }
+    //   return { content: [{ type: "text", text: "绘制成功" }] };
+    // }
     if (request.params.name === "use_eraser") {
         const { width } = request.params.arguments;
         const response = await fetch('http://localhost:3000/eraser', {
@@ -187,13 +253,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new McpError(ErrorCode.InternalError, "颜色设置失败");
         return { content: [{ type: "text", text: "颜色设置成功" }] };
     }
-    if (request.params.name === "get_image") {
-        const response = await fetch('http://localhost:3000/image');
-        if (!response.ok)
-            throw new McpError(ErrorCode.InternalError, "获取图像失败");
-        const imageBuffer = await response.arrayBuffer();
-        return { content: [{ "type": "image", "image_url": Buffer.from(imageBuffer).toString('base64') }] };
-    }
+    // if (request.params.name === "get_image") {
+    //   const response = await fetch('http://localhost:3000/image');
+    //   if (!response.ok) throw new McpError(ErrorCode.InternalError, "获取图像失败");
+    //   const imageBuffer = await response.arrayBuffer();
+    //   return { content:[{"type":"image","image_url":Buffer.from(imageBuffer).toString('base64')}]};
+    // }
     if (request.params.name === "clear_canvas") {
         const response = await fetch('http://localhost:3000/clear', {
             method: 'POST',

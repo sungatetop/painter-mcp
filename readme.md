@@ -25,7 +25,7 @@ python draw_start.py
 ```
 可以看到以下结果
 
-<img src="./images/draw_star.png"/>
+<img src="images/draw_star.png"/>
 
 ## 白板程序的mcp-server使用说明
 编译mcp-painter(server)
@@ -86,8 +86,9 @@ npm run build
 
 ### 2. 绘图操作接口
 - `POST /draw`：执行绘图操作
-  - 参数：`x`, `y`, `isStart`, `isEnd`
-  - 示例：`{"x": 100, "y": 200, "isStart": true}`
+  - 参数：`x`, `y`, `state`
+  - 示例：`{"x": 100, "y": 200, "state": 'start'}`
+  - state: `start`,`move`,`end`
 
 ### 3. 颜色选择器接口
 - `POST /color-picker`：设置颜色
